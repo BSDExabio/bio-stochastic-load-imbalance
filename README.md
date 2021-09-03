@@ -21,5 +21,8 @@ Can use the sample script run_summit.sh in the ineractive mode if you are using 
 ```zsh 
 jsrun --smpiargs="-disable_gpu_hooks" -n 1 -r 1 -a 1 -g 6 -c 42 -d packed -b rs -l CPU-CPU ./t2g 256 512 1 10  
 ``` 
-## Parameters
-Upper limit of task size, number of tasks, grain/chunk size, and upper limit of the convergent rate 
+## Parameter list
+```zsh 
+upper limit of task size, number of tasks, grain/chunk size, and upper limit of the convergent rate 
+``` 
+ 
