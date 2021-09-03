@@ -96,7 +96,6 @@ int main(int argc, char* argv[])
 
   int timestep = 0;
   int probSize = MAXWORK; 
-  int num_timesteps = 1;
   int numThreads = 1;
   int numTasks = N;
   int gsz = 1;
@@ -109,7 +108,6 @@ int main(int argc, char* argv[])
       printf("Usage bench_works [pSize] [numTasks][gsz]  [numThreads]\n" );
       printf("Using default parameters\n" );
       probSize = MAXWORK; 
-      num_timesteps = 1; 
 #pragma omp parallel 
       numThreads = omp_get_num_threads();
       numTasks = N;
@@ -124,11 +122,9 @@ int main(int argc, char* argv[])
       if (argc > 3)
 	gsz = atoi(argv[3]);
       if (argc > 4)
-	num_timesteps = atoi(argv[4]);
-      if (argc > 5)
-	numloop = atoi(argv[5]);
+	numloop = atoi(argv[4]);
     } 
-  printf("bench_works [pSize=%d] [numTasks=%d] [gsz=%d] [num_timesteps=%d] [numThreads=%d] \n", probSize, numTasks, gsz, num_timesteps, numThreads);
+  printf("bench_works [pSize=%d] [numTasks=%d] [gsz=%d] [numThreads=%d] \n", probSize, numTasks, gsz, numThreads);
   int arrSize = probSize*probSize;
   
   float* a = (float*)malloc(arrSize*sizeof(float));
