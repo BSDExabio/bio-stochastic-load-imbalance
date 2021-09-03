@@ -4,7 +4,7 @@ Benchmarking script for multi-GPU, task-to-gpu(task2gpu) scheduling strategies. 
 * dynamic_occ - A synchronous method works based on the occupancy of the GPU. 
 * dynamic_ad - An asynchronous method works based on the load of the GPU. 
 
-#Build
+# Build
 Can use the sample script compile_summit.sh if you are using SUMMIT, using llvm clang or IBM xl compiler. 
 ```zsh
 # using llvm
@@ -12,7 +12,7 @@ module use /sw/summit/modulefiles/ums/stf010/Core
 module load cuda llvm/12.0.0-20210125
 clang++ -Ofast -std=c++17 -fopenmp  -fopenmp-targets=nvptx64-nvida-cuda --cuda-path=${OLCF_CUDA_ROOT} task2gpu_bench.cpp -o t2g  
 ``` 
-#Run
+# Run
 Can use the sample script run_summit.sh in the ineractive mode if you are using SUMMIT.
 ```zsh 
 # using llvm
