@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
- modddule load cuda/10.1.243
+ module load cuda/10.1.243
 
  # using llvm
  module use /sw/summit/modulefiles/ums/stf010/Core
