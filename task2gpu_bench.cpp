@@ -23,6 +23,14 @@
 #define SCHED_ADAPTIVE
 
 
+// Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
+
+#define SCHED_ROUNDROBIN
+//#define SCHED_DYNAMIC                                                                                                                                                                                                     
+// #define SCHED_DYNAMIC2                                                                                                                                                                                                   
+//#define SCHED_RANDOM                                                                                                                                                                                                      
+//#define SCHED_ADAPTIVE                                                                                                                                                                                                    
+//#define SCHED_ADAPTIVE2                                                                                                                                                                                                   
 
 inline unsigned gpu_scheduler_roundrobin( int taskID, int ngpus)
 {
