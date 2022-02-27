@@ -24,17 +24,12 @@
 
 
 
-inline unsigned
-gpu_scheduler_roundrobin(unsigned *occupancies, int taskID, int ngpus)
+inline unsigned gpu_scheduler_roundrobin( int taskID, int ngpus)
 {
   return taskID%ngpus;
 }
 
-
-
-
-inline unsigned
-gpu_scheduler_dynamic_ad(unsigned long *gpuLoad, int ngpus, int taskWeight)
+inline unsigned gpu_scheduler_dynamic_ad(unsigned long *gpuLoad, int ngpus, int taskWeight)
 {
   short looking = 1;
   unsigned chosen;
@@ -62,9 +57,7 @@ gpu_scheduler_dynamic_ad(unsigned long *gpuLoad, int ngpus, int taskWeight)
 
 
 // This version avoids all CPU threads finding the same GPU greedily (and therefore overloading that GPU) 
-
-inline unsigned
-gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int taskWeight)
+inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int taskWeight)
 {
   short looking = 1;
   unsigned chosen;
@@ -249,15 +242,22 @@ int main(int argc, char* argv[])
                const int NN = taskWork[i];
                const int NNsq = NN*NN;
 	       const int nl = rand()%numloop+1;
-#if defined(SCHED_ADAPTIVE)
-	    const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );	    
+#if defined(SCHED_ROUNDROBIN)
+            const int dev = gpu_scheduler_static_rr(i, NNsq);
+#elif defined(SCHED_ADAPTIVE)
+            const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );
+#elif defined(SCHED_ADAPTIVE2)
+            const int dev = gpu_scheduler_dynamic_ad2(gpuLoad, ndevs, NNsq );
 #elif defined(SCHED_RANDOM)
-	    const int dev = gpu_scheduler_random(occupancies, ndevs);
+            const int dev = gpu_scheduler_dynamic_random(occupancies, ndevs);
 #elif defined(SCHED_DYNAMIC)
-	    const int dev = gpu_scheduler_dynamic_occ(occupancies, ndevs);
+            const int dev = gpu_scheduler_dynamic_occ(occupancies, ndevs);
+#elif defined(SCHED_DYNAMIC2)
+            const int dev = gpu_scheduler_dynamic_occ2(occupancies, ndevs);
 #else
-	    const int dev = 0;
+            const int dev = 0;
 #endif
+
 
 #pragma omp task depend(out: success[i])
 	    {
