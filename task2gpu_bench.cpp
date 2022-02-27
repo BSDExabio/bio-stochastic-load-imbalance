@@ -22,6 +22,17 @@
 //#define SCHED_RANDOM
 #define SCHED_ADAPTIVE
 
+
+
+inline unsigned
+gpu_scheduler_roundrobin(unsigned *occupancies, int taskID, int ngpus)
+{
+  return taskID%ngpus;
+}
+
+
+
+
 inline unsigned
 gpu_scheduler_dynamic_ad(unsigned long *gpuLoad, int ngpus, int taskWeight)
 {
@@ -48,12 +59,64 @@ gpu_scheduler_dynamic_ad(unsigned long *gpuLoad, int ngpus, int taskWeight)
   return chosen;
 }
 
+
+
+// This version avoids all CPU threads finding the same GPU greedily (and therefore overloading that GPU) 
+
+inline unsigned
+gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int taskWeight)
+{
+  short looking = 1;
+  unsigned chosen;
+  while (looking) {
+    unsigned long load;
+    unsigned long min_load = ULLONG_MAX;
+	  
+ #pragma omp critical 
+  {
+    for (unsigned i = 0; i < ngpus; i++) {
+      load = gpuLoad[i];
+      if ( load < min_load ){
+        min_load = load;
+        chosen = i;
+      }
+    } 
+        gpuLoad[chosen] += taskWeight;
+  } 
+        looking = 0;
+        break;
+  }
+  return chosen;
+}
+
 inline unsigned
 gpu_scheduler_random(unsigned *occupancies, int ngpus)
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
   occupancies[chosen]++;
+  return chosen;
+}
+
+
+
+
+inline unsigned gpu_scheduler_dyn_occ2(unsigned *occupancies, int ngpus)
+{
+ int chosen = -1;
+ while (chosen == -1) {
+ for (unsigned i = 0; i < ngpus; i++)
+  {
+   #pragma omp critical 
+    {
+       if (occupancies[i] == 0) {
+             occupancies[i]++;
+	   chosen = i;
+      }
+    }
+    if (chosen > -1) break;
+	 
+   }
   return chosen;
 }
 
