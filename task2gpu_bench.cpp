@@ -32,7 +32,7 @@
 //#define SCHED_ADAPTIVE                                                                                                                                                                                                    
 //#define SCHED_ADAPTIVE2                                                                                                                                                                                                   
 
-inline unsigned gpu_scheduler_roundrobin( int taskID, int ngpus)
+inline unsigned gpu_scheduler_static_rr( int taskID, int ngpus)
 {
   return taskID%ngpus;
 }
@@ -90,8 +90,8 @@ inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int
   return chosen;
 }
 
-inline unsigned
-gpu_scheduler_random(unsigned *occupancies, int ngpus)
+
+inline unsigned gpu_scheduler_random(unsigned *occupancies, int ngpus)
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
@@ -100,29 +100,26 @@ gpu_scheduler_random(unsigned *occupancies, int ngpus)
 }
 
 
-
-
 inline unsigned gpu_scheduler_dyn_occ2(unsigned *occupancies, int ngpus)
 {
  int chosen = -1;
  while (chosen == -1) {
- for (unsigned i = 0; i < ngpus; i++)
-  {
-   #pragma omp critical 
-    {
-       if (occupancies[i] == 0) {
-             occupancies[i]++;
+   for (unsigned i = 0; i < ngpus; i++)
+     {
+#pragma omp critical 
+       {
+	 if (occupancies[i] == 0) {
+	   occupancies[i]++;
 	   chosen = i;
-      }
-    }
-    if (chosen > -1) break;
-	 
-   }
-  return chosen;
+	 }
+       }
+    if (chosen > -1) break;	 
+     }
+ }
+ return chosen;
 }
 
-inline unsigned
-gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
+inline unsigned gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
 {
   short looking = 1;
   unsigned chosen;
@@ -146,7 +143,7 @@ gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
 
 int main(int argc, char* argv[])
 {
-	
+  
   int success[N];
   const int ndevs = omp_get_num_devices();
   assert(ndevs > 0);
@@ -154,17 +151,18 @@ int main(int argc, char* argv[])
   int *devices = (int *) calloc(ndevs, sizeof(*devices));
   double start_iterations, end_iterations;
   unsigned *lastGPU = NULL;
-   
+  
   unsigned *occupancies  = (unsigned *) calloc(ndevs, sizeof(*occupancies));
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
-
+  
   int timestep = 0;
   int probSize = MAXWORK; 
   int numThreads = 1;
   int numTasks = N;
   int gsz = 1;
-  int numloop = MAX_LOOP;	
-	
+  int numloop = MAX_LOOP;
+  
+  unsigned *chosen = (unsigned *) malloc(numTasks*sizeof(unsigned));
   
   srand((unsigned) time(NULL));
   if(argc <= 1) 
@@ -213,7 +211,7 @@ int main(int argc, char* argv[])
       //ctaskwork =  LOWERLT + (rand()%(probSize-LOWERLT) -1); 
       ctaskwork =  1 + (rand()%probSize -1);
       //ctaskwork = probSize; 
-#else 
+ #else 
 #ifdef INCREASING_SIZED_TASKS
       ctaskwork =  1 + (rand()%probSize -1); 
       //ctaskwork =  LOWERLT + (rand()%(probSize-LOWERLT) -1); 
@@ -238,13 +236,14 @@ int main(int argc, char* argv[])
   double cpu_time = 0.0;
   double task_time = 0.0;
   int nextTask = ndevs; // this is needed only for the ad2 and ad strategy
+
 	
 #pragma omp parallel
       {
 #pragma omp single
 	{
 	  start_iterations =  omp_get_wtime();
-#pragma omp taskloop shared(success) grainsize(gsz)
+#pragma omp taskloop shared(success, nextTask, chosen)  grainsize(gsz)
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
                const int NN = taskWork[i];
@@ -253,7 +252,7 @@ int main(int argc, char* argv[])
 		  // set up work needed for the firing of task[i], 
 		  // thread picks a device for its current task 
 		  // (or defers the decision by not assigning to chosen[i]) 
-#if defined(SCHED_ROUNDROBIN) 
+#if defined(SCHED_ROUNDROBIN)
             const int dev = gpu_scheduler_static_rr(i, NNsq);
 #elif defined(SCHED_ADAPTIVE)
             const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );
@@ -269,8 +268,9 @@ int main(int argc, char* argv[])
             const int dev = 0;
 #endif
 if (dev != -1) chosen[i] = dev; 
-	  success[i] = 0; 
-#pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
+	  success[i] = 0;
+	  // name: fire [i]
+#pragma omp task depend(in:chosen[i]) depend(inout:success[i])
 	    {
 		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)
 		    
@@ -295,9 +295,11 @@ if (dev != -1) chosen[i] = dev;
 	      occupancies[d]--; 
 	      gpuLoad[d] -= NNsq;  
 #if defined(SCHED_ADAPTIVE)
-	     // nextTask assignedTo the GPU just freed;  
-#pragma omp atomic
-	      int myTask = nextTask++; 
+	     // nextTask assignedTo the GPU just freed;
+	      int myTask;
+#pragma omp atomic capture
+	       myTask = nextTask++;
+	     
               if(myTask < numTasks) chosen[myTask] = d; 
 #endif
 	    } 
