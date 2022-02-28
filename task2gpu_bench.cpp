@@ -163,9 +163,8 @@ int main(int argc, char* argv[])
   int numThreads = 1;
   int numTasks = N;
   int gsz = 1;
-  int numloop = MAX_LOOP;	
+  int numloop = MAX_LOOP; 
 	
-  
   srand((unsigned) time(NULL));
   if(argc <= 1) 
     {
@@ -244,7 +243,8 @@ int main(int argc, char* argv[])
 #pragma omp single
 	{
 	  start_iterations =  omp_get_wtime();
-#pragma omp taskloop shared(success) grainsize(gsz)
+#pragma omp taskloop shared(success, nextTask, chosen)  grainsize(gsz)
+
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
                const int NN = taskWork[i];
@@ -269,41 +269,47 @@ int main(int argc, char* argv[])
             const int dev = 0;
 #endif
 if (dev != -1) chosen[i] = dev; 
-	  success[i] = 0; 
+	  success[i] = 0;
 #pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
-	    {
-		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)
-		    
+	    { 
+		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1) 
+   	       if (dev != -1) chosen[i] = dev;
+               success[i] = 0;
+          // name: fire [i]                                                                                                                                                                                                 
+#pragma omp task depend(in:chosen[i]) depend(inout:success[i])
+            {
+                int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)                                                                                                                                                     
 #pragma omp target device(d) map(to: nl)\
   map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) nowait
-	      {
-		devices[d]++; 
-		const int NN = taskWork[i]; 
+              {
+                devices[d]++;
+                const int NN = taskWork[i];
 #ifdef MM
-   	       for(int l = 0; l < nl; l++)
-	           for (int i = 0; i < NN; i++)
-        	   for (int j = 0; j < NN; j++)
-           	   for (int k = 0; k < NN; k++)
-               		c[i * NN + j] += a[i * NN + k] * b[k * NN + j];
-		success[i] = 1; // Note to Mathi: coudl this be outside ifdef?
-#endif 
-	      } // end target
-	    } // end task 
-#pragma omp task depend(in: success[i]) // name: post[i] 
-	    {
-              int d = chosen[i]; // d is the device that just got freed 
-	      occupancies[d]--; 
-	      gpuLoad[d] -= NNsq;  
-#if defined(SCHED_ADAPTIVE)
-	     // nextTask assignedTo the GPU just freed;  
-#pragma omp atomic
-	      int myTask = nextTask++; 
-              if(myTask < numTasks) chosen[myTask] = d; 
+               for(int l = 0; l < nl; l++)
+                   for (int i = 0; i < NN; i++)
+                   for (int j = 0; j < NN; j++)
+                   for (int k = 0; k < NN; k++)
+                        c[i * NN + j] += a[i * NN + k] * b[k * NN + j];
+                success[i] = 1; // Note to Mathi: coudl this be outside ifdef?                                                                                                                                              
 #endif
-	    } 
-	    } // end taskloop
-	    } // end of single
+              } // end target                                                                                                                                                                                               
+            } // end task                                                                                                                                                                                                   
+#pragma omp task depend(in: success[i]) // name: post[i]                                                                                                                                                                    
+            {
+              int d = chosen[i]; // d is the device that just got freed                                                                                                                                                     
+              occupancies[d]--;
+              gpuLoad[d] -= NNsq;
+#if defined(SCHED_ADAPTIVE)
+             // nextTask assignedTo the GPU just freed                                                                                                                                                                      
+              int myTask;
+#pragma omp atomic capture 
+               myTask = nextTask++;
 
+              if(myTask < numTasks) chosen[myTask] = d;
+#endif
+              }
+            } // end taskloop                                                                                                                                                                                               
+            } // end of single 
 #pragma omp master
 	      {
 	      int check = 0;
