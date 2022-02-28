@@ -17,12 +17,6 @@
 #define MAXWORK 10
 #define MAX_LOOP 10
 
-// Scheduling strategies, unset all to use the compact schedue
-//#define SCHED_DYNAMIC
-//#define SCHED_RANDOM
-#define SCHED_ADAPTIVE
-
-
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
 #define SCHED_ROUNDROBIN
@@ -32,7 +26,7 @@
 //#define SCHED_ADAPTIVE                                                                                                                                                                                                    
 //#define SCHED_ADAPTIVE2                                                                                                                                                                                                   
 
-inline unsigned gpu_scheduler_roundrobin( int taskID, int ngpus)
+inline unsigned gpu_scheduler_static_rr( int taskID, int ngpus)
 {
   return taskID%ngpus;
 }
@@ -118,6 +112,7 @@ inline unsigned gpu_scheduler_dyn_occ2(unsigned *occupancies, int ngpus)
     if (chosen > -1) break;
 	 
    }
+ }
   return chosen;
 }
 
@@ -155,6 +150,7 @@ int main(int argc, char* argv[])
   double start_iterations, end_iterations;
   unsigned *lastGPU = NULL;
    
+  int chosen[N];
   unsigned *occupancies  = (unsigned *) calloc(ndevs, sizeof(*occupancies));
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
 
@@ -254,7 +250,7 @@ int main(int argc, char* argv[])
 		  // thread picks a device for its current task 
 		  // (or defers the decision by not assigning to chosen[i]) 
 #if defined(SCHED_ROUNDROBIN) 
-            const int dev = gpu_scheduler_static_rr(i, NNsq);
+            const int dev = gpu_scheduler_static_rr(i, ndevs);
 #elif defined(SCHED_ADAPTIVE)
             const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );
 #elif defined(SCHED_ADAPTIVE2)
@@ -270,12 +266,13 @@ int main(int argc, char* argv[])
 #endif
 if (dev != -1) chosen[i] = dev; 
 	  success[i] = 0;
-#pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
+/*#pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
 	    { 
 		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1) 
    	       if (dev != -1) chosen[i] = dev;
                success[i] = 0;
           // name: fire [i]                                                                                                                                                                                                 
+*/
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
             {
                 int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)                                                                                                                                                     
