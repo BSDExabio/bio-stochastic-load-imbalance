@@ -19,8 +19,8 @@
 
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
-#define SCHED_ROUNDROBIN
-//#define SCHED_DYNAMIC                                                                                                                                                                                                     
+//#define SCHED_ROUNDROBIN
+#define SCHED_DYNAMIC                                                                                                                                                                                                     
 // #define SCHED_DYNAMIC2                                                                                                                                                                                                   
 //#define SCHED_RANDOM                                                                                                                                                                                                      
 //#define SCHED_ADAPTIVE                                                                                                                                                                                                    
@@ -294,9 +294,11 @@ if (dev != -1) chosen[i] = dev;
 #pragma omp task depend(in: success[i]) // name: post[i]                                                                                                                                                                    
             {
               int d = chosen[i]; // d is the device that just got freed                                                                                                                                                     
+#if defined(SCHED_RANDOM) || defined(SCHED_DYNAMIC) || defined(SCHED_DYNAMIC2)
               occupancies[d]--;
+#endif
+#if defined(SCHED_ADAPTIVE) || defined(SCHED_ADAPTIVE2)
               gpuLoad[d] -= NNsq;
-#if defined(SCHED_ADAPTIVE)
              // nextTask assignedTo the GPU just freed                                                                                                                                                                      
               int myTask;
 #pragma omp atomic capture 
