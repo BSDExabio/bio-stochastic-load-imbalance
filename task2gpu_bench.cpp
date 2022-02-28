@@ -20,12 +20,12 @@
 // Scheduling strategies, unset all to use the compact schedue
 //#define SCHED_DYNAMIC
 //#define SCHED_RANDOM
-#define SCHED_ADAPTIVE
+//#define SCHED_ADAPTIVE
 
 
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
-#define SCHED_ROUNDROBIN
+//#define SCHED_ROUNDROBIN
 //#define SCHED_DYNAMIC                                                                                                                                                                                                     
 // #define SCHED_DYNAMIC2                                                                                                                                                                                                   
 //#define SCHED_RANDOM                                                                                                                                                                                                      
@@ -161,7 +161,6 @@ int main(int argc, char* argv[])
   int numTasks = N;
   int gsz = 1;
   int numloop = MAX_LOOP;
-  
   unsigned *chosen = (unsigned *) malloc(numTasks*sizeof(unsigned));
   
   srand((unsigned) time(NULL));
@@ -244,6 +243,7 @@ int main(int argc, char* argv[])
 	{
 	  start_iterations =  omp_get_wtime();
 #pragma omp taskloop shared(success, nextTask, chosen)  grainsize(gsz)
+
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
                const int NN = taskWork[i];
@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
 		  // thread picks a device for its current task 
 		  // (or defers the decision by not assigning to chosen[i]) 
 #if defined(SCHED_ROUNDROBIN)
-            const int dev = gpu_scheduler_static_rr(i, NNsq);
+            const int dev = gpu_scheduler_static_rr(i, ndevs);
 #elif defined(SCHED_ADAPTIVE)
             const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );
 #elif defined(SCHED_ADAPTIVE2)
@@ -273,12 +273,12 @@ if (dev != -1) chosen[i] = dev;
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
 	    {
 		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)
-		    
+     	    
 #pragma omp target device(d) map(to: nl)\
   map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) nowait
-	      {
-		devices[d]++; 
-		const int NN = taskWork[i]; 
+              {
+                devices[d]++;
+                const int NN = taskWork[i];
 #ifdef MM
    	       for(int l = 0; l < nl; l++)
 	           for (int i = 0; i < NN; i++)
@@ -298,14 +298,12 @@ if (dev != -1) chosen[i] = dev;
 	     // nextTask assignedTo the GPU just freed;
 	      int myTask;
 #pragma omp atomic capture
-	       myTask = nextTask++;
-	     
+	       myTask = nextTask++;	     
               if(myTask < numTasks) chosen[myTask] = d; 
 #endif
-	    } 
-	    } // end taskloop
-	    } // end of single
-
+	    } // end task                                                                                                               
+	  } // end taskloop                                                                                                                                                                                         
+	} // end of single 
 #pragma omp master
 	      {
 	      int check = 0;
