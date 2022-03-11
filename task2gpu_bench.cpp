@@ -8,7 +8,7 @@
 
 // Input data distribution
 #define RANDOM_SIZED_TASKS
-//#define INCREASING_SIZED_TASKS
+// #define INCREASING_SIZED_TASKS
 #define LOWERLT 128
 
 // Application problem
@@ -20,7 +20,7 @@
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
 //#define SCHED_ROUNDROBIN
-#define SCHED_DYNAMIC                                                                                                                                                                                                     
+// #define SCHED_DYNAMIC                                                                                                                                                                                                     
 // #define SCHED_DYNAMIC2                                                                                                                                                                                                   
 //#define SCHED_RANDOM                                                                                                                                                                                                      
 //#define SCHED_ADAPTIVE                                                                                                                                                                                                    
@@ -85,7 +85,7 @@ inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int
 }
 
 inline unsigned
-gpu_scheduler_random(unsigned *occupancies, int ngpus)
+gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
@@ -96,7 +96,7 @@ gpu_scheduler_random(unsigned *occupancies, int ngpus)
 
 
 
-inline unsigned gpu_scheduler_dyn_occ2(unsigned *occupancies, int ngpus)
+inline unsigned gpu_scheduler_dynamic_occ2(unsigned *occupancies, int ngpus)
 {
  int chosen = -1;
  while (chosen == -1) {
@@ -142,7 +142,7 @@ gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
 int main(int argc, char* argv[])
 {
 	
-  int success[N];
+
   const int ndevs = omp_get_num_devices();
   assert(ndevs > 0);
   printf("There are %d GPUs\n", ndevs);
@@ -150,11 +150,12 @@ int main(int argc, char* argv[])
   double start_iterations, end_iterations;
   unsigned *lastGPU = NULL;
    
-  int chosen[N];
+  //  int chosen[N];
   unsigned *occupancies  = (unsigned *) calloc(ndevs, sizeof(*occupancies));
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
 
-  int timestep = 0;
+
+  int timestep = 1;
   int probSize = MAXWORK; 
   int numThreads = 1;
   int numTasks = N;
@@ -192,6 +193,10 @@ int main(int argc, char* argv[])
   
   int* taskWork = (int*)malloc(sizeof(int)*numTasks);
   int* taskWorkSquared = (int*)malloc(sizeof(int)*numTasks);
+
+  int* chosen = (int*)malloc(sizeof(int)*numTasks);
+  int* success = (int*)malloc(sizeof(int)*numTasks);
+
   // initialize 
 
   for(int i = 0; i< arrSize; i++) 
@@ -244,7 +249,7 @@ int main(int argc, char* argv[])
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
                const int NN = taskWork[i];
-               const int NNsq = NN*NN;
+	       const int NNsq = NN*NN;
 	       const int nl = rand()%numloop+1;
 		  // set up work needed for the firing of task[i], 
 		  // thread picks a device for its current task 
@@ -326,9 +331,13 @@ if (dev != -1) chosen[i] = dev;
 	      printf("Total number of CPU threads=%d\n", omp_get_num_threads());
  	      }
 	} // end parallel
-	      free(a);
-	      free(b); 
-	      free(c);
-	      free(devices);
+  free(a);
+free(b); 
+free(c);
+free(devices);
+free(chosen);
+free(taskWork);
+free(taskWorkSquared);
+free(success);
 	      return 0;
 } // end main
