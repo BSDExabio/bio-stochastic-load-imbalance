@@ -17,6 +17,7 @@
 #define MAXWORK 10
 #define MAX_LOOP 10
 
+<<<<<<< HEAD
 // Scheduling strategies, unset all to use the compact schedue
 //#define SCHED_DYNAMIC
 //#define SCHED_RANDOM
@@ -27,6 +28,12 @@
 
 //#define SCHED_ROUNDROBIN
 //#define SCHED_DYNAMIC                                                                                                                                                                                                     
+=======
+// Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
+
+//#define SCHED_ROUNDROBIN
+#define SCHED_DYNAMIC                                                                                                                                                                                                     
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
 // #define SCHED_DYNAMIC2                                                                                                                                                                                                   
 //#define SCHED_RANDOM                                                                                                                                                                                                      
 //#define SCHED_ADAPTIVE                                                                                                                                                                                                    
@@ -111,12 +118,22 @@ inline unsigned gpu_scheduler_dyn_occ2(unsigned *occupancies, int ngpus)
 	 if (occupancies[i] == 0) {
 	   occupancies[i]++;
 	   chosen = i;
+<<<<<<< HEAD
 	 }
        }
     if (chosen > -1) break;	 
      }
  }
  return chosen;
+=======
+      }
+    }
+    if (chosen > -1) break;
+	 
+   }
+ }
+  return chosen;
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
 }
 
 inline unsigned gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
@@ -151,7 +168,12 @@ int main(int argc, char* argv[])
   int *devices = (int *) calloc(ndevs, sizeof(*devices));
   double start_iterations, end_iterations;
   unsigned *lastGPU = NULL;
+<<<<<<< HEAD
   
+=======
+   
+  int chosen[N];
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
   unsigned *occupancies  = (unsigned *) calloc(ndevs, sizeof(*occupancies));
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
   
@@ -252,7 +274,11 @@ int main(int argc, char* argv[])
 		  // set up work needed for the firing of task[i], 
 		  // thread picks a device for its current task 
 		  // (or defers the decision by not assigning to chosen[i]) 
+<<<<<<< HEAD
 #if defined(SCHED_ROUNDROBIN)
+=======
+#if defined(SCHED_ROUNDROBIN) 
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
             const int dev = gpu_scheduler_static_rr(i, ndevs);
 #elif defined(SCHED_ADAPTIVE)
             const int dev = gpu_scheduler_dynamic_ad(gpuLoad, ndevs, NNsq );
@@ -269,7 +295,17 @@ int main(int argc, char* argv[])
 #endif
 if (dev != -1) chosen[i] = dev; 
 	  success[i] = 0;
+<<<<<<< HEAD
 	  // name: fire [i]
+=======
+/*#pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
+	    { 
+		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1) 
+   	       if (dev != -1) chosen[i] = dev;
+               success[i] = 0;
+          // name: fire [i]                                                                                                                                                                                                 
+*/
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
 	    {
 		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)
@@ -280,6 +316,7 @@ if (dev != -1) chosen[i] = dev;
                 devices[d]++;
                 const int NN = taskWork[i];
 #ifdef MM
+<<<<<<< HEAD
    	       for(int l = 0; l < nl; l++)
 	           for (int i = 0; i < NN; i++)
         	   for (int j = 0; j < NN; j++)
@@ -300,6 +337,31 @@ if (dev != -1) chosen[i] = dev;
 #pragma omp atomic capture
 	       myTask = nextTask++;	     
               if(myTask < numTasks) chosen[myTask] = d; 
+=======
+               for(int l = 0; l < nl; l++)
+                   for (int i = 0; i < NN; i++)
+                   for (int j = 0; j < NN; j++)
+                   for (int k = 0; k < NN; k++)
+                        c[i * NN + j] += a[i * NN + k] * b[k * NN + j];
+                success[i] = 1; // Note to Mathi: coudl this be outside ifdef?                                                                                                                                              
+#endif
+              } // end target                                                                                                                                                                                               
+            } // end task                                                                                                                                                                                                   
+#pragma omp task depend(in: success[i]) // name: post[i]                                                                                                                                                                    
+            {
+              int d = chosen[i]; // d is the device that just got freed                                                                                                                                                     
+#if defined(SCHED_RANDOM) || defined(SCHED_DYNAMIC) || defined(SCHED_DYNAMIC2)
+              occupancies[d]--;
+#endif
+#if defined(SCHED_ADAPTIVE) || defined(SCHED_ADAPTIVE2)
+              gpuLoad[d] -= NNsq;
+             // nextTask assignedTo the GPU just freed                                                                                                                                                                      
+              int myTask;
+#pragma omp atomic capture 
+               myTask = nextTask++;
+
+              if(myTask < numTasks) chosen[myTask] = d;
+>>>>>>> ec2afa27a2506507c227b7fd78ffcb2984f395fa
 #endif
 	    } // end task                                                                                                               
 	  } // end taskloop                                                                                                                                                                                         

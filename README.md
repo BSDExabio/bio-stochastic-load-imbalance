@@ -1,4 +1,6 @@
-# bio-stochastic-load-imbalance
+# bio-stochastic-load-imbalance fork 
+This is Vivek's fork of the bio-statistic load imbalance which has contributions from the SOLLVE project at BNL. 
+
 Benchmarking script for multiple GPU task-to-gpu(task2gpu) scheduling strategies applicable for stochastic applications with load imbalance. It includes 3 different task2gpu scheduling approaches,
 * dynamic_rand - An asynchronous method, it choses GPU randomly.
 * dynamic_occ - A synchronous method works based on the occupancy of the GPU. 
