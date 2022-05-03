@@ -85,7 +85,7 @@ inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int
 }
 
 inline unsigned
-gpu_scheduler_random(unsigned *occupancies, int ngpus)
+gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
@@ -236,10 +236,11 @@ int main(int argc, char* argv[])
 	
 #pragma omp parallel
       {
-#pragma omp single
+//#pragma omp single
 	{
 	  start_iterations =  omp_get_wtime();
-#pragma omp taskloop shared(success, nextTask, chosen)  grainsize(gsz)
+#pragma omp parallel for shared(success, nextTask, chosen) 
+//#pragma omp taskloop shared(success, nextTask, chosen) grainsize(gsz)
 
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
@@ -276,13 +277,19 @@ if (dev != -1) chosen[i] = dev;
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
             {
                 int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)                                                                                                                                                     
+#if defined(ASYN)
 #pragma omp target device(d) map(to: nl)\
   map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) nowait
+#else
+#pragma omp target device(d) map(to: nl)\
+  map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) 
+#endif
               {
                 devices[d]++;
                 const int NN = taskWork[i];
 #ifdef MM
                for(int l = 0; l < nl; l++)
+		   //#pragma omp target teams disrtibute parallel for colapse(3) 
                    for (int i = 0; i < NN; i++)
                    for (int j = 0; j < NN; j++)
                    for (int k = 0; k < NN; k++)
