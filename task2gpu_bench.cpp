@@ -312,7 +312,9 @@ if (dev != -1) chosen[i] = dev;
                 devices[d]++;
                 const int NN = taskWork[i];
 #ifdef MM
+		      
                for(int l = 0; l < nl; l++)
+#pragma omp teams distribute parallel for collapse(3) simd 
                    for (int i = 0; i < NN; i++)
                    for (int j = 0; j < NN; j++)
                    for (int k = 0; k < NN; k++)
@@ -320,7 +322,7 @@ if (dev != -1) chosen[i] = dev;
                 success[i] = 1; // Note to Mathi: coudl this be outside ifdef?                                                                                                                                              
 #endif
               } // end target                                                                                                                                                                                               
-            } // end task                                                                                                                                                                                                   
+            } // end task                                                                                                                                                                       
 #pragma omp task depend(in: success[i]) // name: post[i]                                                                                                                                                                    
             {
               int d = chosen[i]; // d is the device that just got freed                                                                                                                                                     
