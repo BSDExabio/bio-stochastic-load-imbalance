@@ -6,6 +6,10 @@
 #include <omp.h>
 #include <limits.h>
 
+
+#ifdef HAVE_MPI
+#include <mpi.h>
+#endif 
 // Input data distribution
 #define RANDOM_SIZED_TASKS
 // #define INCREASING_SIZED_TASKS
@@ -17,9 +21,16 @@
 #define MAXWORK 10
 #define MAX_LOOP 10
 
+// Scheduling strategies, unset all to use the compact schedue
+//#define SCHED_DYNAMIC
+//#define SCHED_RANDOM
+//#define SCHED_ADAPTIVE
+
+
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
 //#define SCHED_ROUNDROBIN
+
 // #define SCHED_DYNAMIC                                                                                                                                                                                                     
 // #define SCHED_DYNAMIC2                                                                                                                                                                                                   
 //#define SCHED_RANDOM                                                                                                                                                                                                      
@@ -84,8 +95,8 @@ inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int
   return chosen;
 }
 
-inline unsigned
-gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
+inline unsigned gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
+
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
@@ -95,29 +106,26 @@ gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
 
 
 
-
 inline unsigned gpu_scheduler_dynamic_occ2(unsigned *occupancies, int ngpus)
 {
  int chosen = -1;
  while (chosen == -1) {
- for (unsigned i = 0; i < ngpus; i++)
-  {
-   #pragma omp critical 
-    {
-       if (occupancies[i] == 0) {
-             occupancies[i]++;
+   for (unsigned i = 0; i < ngpus; i++)
+     {
+#pragma omp critical 
+       {
+	 if (occupancies[i] == 0) {
+	   occupancies[i]++;
 	   chosen = i;
-      }
-    }
-    if (chosen > -1) break;
-	 
-   }
+	 }
+       }
+    if (chosen > -1) break;	 
+     }
  }
-  return chosen;
+ return chosen;
 }
 
-inline unsigned
-gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
+inline unsigned gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
 {
   short looking = 1;
   unsigned chosen;
@@ -141,26 +149,33 @@ gpu_scheduler_dynamic_occ(unsigned *occupancies, int ngpus)
 
 int main(int argc, char* argv[])
 {
-	
-
+  
+  int success[N];
   const int ndevs = omp_get_num_devices();
   assert(ndevs > 0);
   printf("There are %d GPUs\n", ndevs);
   int *devices = (int *) calloc(ndevs, sizeof(*devices));
   double start_iterations, end_iterations;
   unsigned *lastGPU = NULL;
-   
-  //  int chosen[N];
+
   unsigned *occupancies  = (unsigned *) calloc(ndevs, sizeof(*occupancies));
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
-
-
-  int timestep = 1;
+  
+  int timestep = 0;
+   
   int probSize = MAXWORK; 
   int numThreads = 1;
   int numTasks = N;
   int gsz = 1;
-  int numloop = MAX_LOOP; 
+  int numloop = MAX_LOOP;
+  unsigned *chosen = (unsigned *) malloc(numTasks*sizeof(unsigned));
+#ifdef HAVE_MPI 
+	int numProcs;
+	int procNum; 
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &procNum); 
+	MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+#endif 
 	
   srand((unsigned) time(NULL));
   if(argc <= 1) 
@@ -179,12 +194,14 @@ int main(int argc, char* argv[])
 	probSize = atoi(argv[1]);
       if (argc > 2)
 	numTasks = atoi(argv[2]);
+     #pragma omp parallel 
+      numThreads = omp_get_num_threads();
       if (argc > 3)
 	gsz = atoi(argv[3]);
       if (argc > 4)
 	numloop = atoi(argv[4]);
     } 
-  printf("bench_works [pSize=%d] [numTasks=%d] [gsz=%d] [numThreads=%d] \n", probSize, numTasks, gsz, numThreads);
+  printf("t2gb [pSize=%d] [numTasks=%d] [gsz=%d] [numloop=%d] \n", probSize, numTasks, gsz, numThreads);
   int arrSize = probSize*probSize;
   
   float* a = (float*)malloc(arrSize*sizeof(float));
@@ -207,19 +224,32 @@ int main(int argc, char* argv[])
     }
 
   int ctaskwork;
+// TODO: Figure out the right multiplier for problem size later . 
+   if (probSize < LOWERLT) { printf("Problem size becoming double the LOWERLT as it is less than LOWERLT\n"); probSize = LOWERLT*2;}
+	
   for (int i =0 ; i < numTasks; i++)
     {
+	  
+	  #ifdef FIXED_SIZED_TASKS
+	  	     ctaskwork =  LOWERLT + (probSize-LOWERLT)/numTasks);
+	  #endif 
+	  
+	  #ifdef FIXED_SIZED_INCREASING_TASKS
+	     ctaskwork =  LOWERLT + i*((probSize-LOWERLT)/numTasks);
+	  #endif 
+	  
 #ifdef RANDOM_SIZED_TASKS
       //ctaskwork =  LOWERLT + (rand()%(probSize-LOWERLT) -1); 
       ctaskwork =  1 + (rand()%probSize -1);
       //ctaskwork = probSize; 
-#else 
-#ifdef INCREASING_SIZED_TASKS
-      ctaskwork =  1 + (rand()%probSize -1); 
-      //ctaskwork =  LOWERLT + (rand()%(probSize-LOWERLT) -1); 
+ #else 
+#ifdef INCREASING_RANDOM_SIZED_TASKS
+      //ctaskwork =  1 + (rand()%probSize -1); 
+      ctaskwork =  LOWERLT + (rand()%(probSize-LOWERLT) -1); 
+	  
 #endif
-#endif 
-#ifdef INCREASING_SIZED_TASKS
+#endif
+#ifdef INCREASING_RANDOM_SIZED_TASKS
        int j = i-1;
       while((j>=0) && (ctaskwork < taskWork[j]))
         {
@@ -238,6 +268,7 @@ int main(int argc, char* argv[])
   double cpu_time = 0.0;
   double task_time = 0.0;
   int nextTask = ndevs; // this is needed only for the ad2 and ad strategy
+
 	
 #pragma omp parallel
       {
@@ -255,6 +286,7 @@ int main(int argc, char* argv[])
 		  // set up work needed for the firing of task[i], 
 		  // thread picks a device for its current task 
 		  // (or defers the decision by not assigning to chosen[i]) 
+
 #if defined(SCHED_ROUNDROBIN) 
             const int dev = gpu_scheduler_static_rr(i, ndevs);
 #elif defined(SCHED_ADAPTIVE)
@@ -272,6 +304,7 @@ int main(int argc, char* argv[])
 #endif
 if (dev != -1) chosen[i] = dev; 
 	  success[i] = 0;
+
 /*#pragma omp task depend(in: chosen[i], inout: success[i])// name: fire [i]
 	    { 
 		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1) 
@@ -280,9 +313,11 @@ if (dev != -1) chosen[i] = dev;
           // name: fire [i]                                                                                                                                                                                                 
 */
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
+
             {
                 int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)                                                                                                                                                     
 #if defined(ASYN)
+              
 #pragma omp target device(d) map(to: nl)\
   map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) nowait
 #else
@@ -293,8 +328,10 @@ if (dev != -1) chosen[i] = dev;
                 devices[d]++;
                 const int NN = taskWork[i];
 #ifdef MM
+		      
                for(int l = 0; l < nl; l++)
-		   //#pragma omp target teams disrtibute parallel for colapse(3) 
+#pragma omp teams distribute parallel for collapse(3) simd 
+
                    for (int i = 0; i < NN; i++)
                    for (int j = 0; j < NN; j++)
                    for (int k = 0; k < NN; k++)
@@ -302,11 +339,11 @@ if (dev != -1) chosen[i] = dev;
                 success[i] = 1; // Note to Mathi: coudl this be outside ifdef?                                                                                                                                              
 #endif
               } // end target                                                                                                                                                                                               
-            } // end task                                                                                                                                                                                                   
+            } // end task                                                                                                                                                                       
 #pragma omp task depend(in: success[i]) // name: post[i]                                                                                                                                                                    
             {
               int d = chosen[i]; // d is the device that just got freed                                                                                                                                                     
-#if defined(SCHED_RANDOM) || defined(SCHED_DYNAMIC) || defined(SCHED_DYNAMIC2)
+#if defined(SCHED_RANDOM) || defined(SCHED_DYNAMIC) || defined(SCHED_DYNAMIC2) || defined(SCHED_ROUNDROBIN)
               occupancies[d]--;
 #endif
 #if defined(SCHED_ADAPTIVE) || defined(SCHED_ADAPTIVE2)
@@ -315,12 +352,11 @@ if (dev != -1) chosen[i] = dev;
               int myTask;
 #pragma omp atomic capture 
                myTask = nextTask++;
-
               if(myTask < numTasks) chosen[myTask] = d;
 #endif
-              }
-            } // end taskloop                                                                                                                                                                                               
-            } // end of single 
+	    } // end task                                                                                                               
+	  } // end taskloop                                                                                                                                                                                         
+	} // end of single 
 #pragma omp master
 	      {
 	      int check = 0;
@@ -338,13 +374,17 @@ if (dev != -1) chosen[i] = dev;
 	      printf("Total number of CPU threads=%d\n", omp_get_num_threads());
  	      }
 	} // end parallel
-  free(a);
-free(b); 
-free(c);
-free(devices);
-free(chosen);
-free(taskWork);
-free(taskWorkSquared);
-free(success);
+	      free(a);
+	      free(b); 
+	      free(c);
+	      free(devices);
+     	      free(success);	
+	      free(chosen);
+	      free(taskWork);
+	     free(taskWorkSquared);
+	#ifdef HAVE_MPI
+	MPI_Finalize();
+	#endif 
+	
 	      return 0;
 } // end main
