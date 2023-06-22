@@ -12,7 +12,7 @@
 #endif 
 // Input data distribution
 #define RANDOM_SIZED_TASKS
-//#define INCREASING_SIZED_TASKS
+// #define INCREASING_SIZED_TASKS
 #define LOWERLT 128
 
 // Application problem
@@ -30,7 +30,12 @@
 // Scheduling strategies, unset all to use the compact schedue                                                                                                                                                              
 
 //#define SCHED_ROUNDROBIN
-//#define SCHED_DYNAMIC                                                                                                                                                                                              
+
+// #define SCHED_DYNAMIC                                                                                                                                                                                                     
+// #define SCHED_DYNAMIC2                                                                                                                                                                                                   
+//#define SCHED_RANDOM                                                                                                                                                                                                      
+//#define SCHED_ADAPTIVE                                                                                                                                                                                                    
+//#define SCHED_ADAPTIVE2                                                                                                                                                                                                   
 
 inline unsigned gpu_scheduler_static_rr( int taskID, int ngpus)
 {
@@ -90,14 +95,15 @@ inline unsigned gpu_scheduler_dynamic_ad2(unsigned long *gpuLoad, int ngpus, int
   return chosen;
 }
 
-
 inline unsigned gpu_scheduler_dynamic_random(unsigned *occupancies, int ngpus)
+
 {
   const unsigned chosen = rand() % ngpus;
 #pragma omp atomic
   occupancies[chosen]++;
   return chosen;
 }
+
 
 
 inline unsigned gpu_scheduler_dynamic_occ2(unsigned *occupancies, int ngpus)
@@ -156,6 +162,7 @@ int main(int argc, char* argv[])
   unsigned long *gpuLoad  = (unsigned long*) calloc(ndevs, sizeof(*gpuLoad));
   
   int timestep = 0;
+   
   int probSize = MAXWORK; 
   int numThreads = 1;
   int numTasks = N;
@@ -203,7 +210,9 @@ int main(int argc, char* argv[])
   
   int* taskWork = (int*)malloc(sizeof(int)*numTasks);
   int* taskWorkSquared = (int*)malloc(sizeof(int)*numTasks);
-   int* success = (int*)malloc(sizeof(int)*numTasks);
+
+  int* chosen = (int*)malloc(sizeof(int)*numTasks);
+  int* success = (int*)malloc(sizeof(int)*numTasks);
 
   // initialize 
 
@@ -263,15 +272,16 @@ int main(int argc, char* argv[])
 	
 #pragma omp parallel
       {
-#pragma omp single
+//#pragma omp single
 	{
 	  start_iterations =  omp_get_wtime();
-#pragma omp taskloop shared(success, nextTask, chosen)  grainsize(gsz)
+#pragma omp parallel for shared(success, nextTask, chosen) 
+//#pragma omp taskloop shared(success, nextTask, chosen) grainsize(gsz)
 
 	  for (int i = 0; i < numTasks; i++) {
             if(taskWork[i] > probSize) taskWork[i] = probSize;
                const int NN = taskWork[i];
-               const int NNsq = NN*NN;
+	       const int NNsq = NN*NN;
 	       const int nl = rand()%numloop+1;
 		  // set up work needed for the firing of task[i], 
 		  // thread picks a device for its current task 
@@ -303,11 +313,17 @@ if (dev != -1) chosen[i] = dev;
           // name: fire [i]                                                                                                                                                                                                 
 */
 #pragma omp task depend(in:chosen[i]) depend(inout:success[i])
-	    {
-		int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)
-     	    
+
+            {
+                int d = chosen[i]; // assert(0 <= chosen[i] <= ndevs-1)                                                                                                                                                     
+#if defined(ASYN)
+              
 #pragma omp target device(d) map(to: nl)\
   map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) nowait
+#else
+#pragma omp target device(d) map(to: nl)\
+  map(to: a[0:arrSize], b[0:arrSize], c[0:arrSize]) map(tofrom: success[i:1], devices[d:1], taskWork[i:1]) 
+#endif
               {
                 devices[d]++;
                 const int NN = taskWork[i];
@@ -315,6 +331,7 @@ if (dev != -1) chosen[i] = dev;
 		      
                for(int l = 0; l < nl; l++)
 #pragma omp teams distribute parallel for collapse(3) simd 
+
                    for (int i = 0; i < NN; i++)
                    for (int j = 0; j < NN; j++)
                    for (int k = 0; k < NN; k++)
@@ -335,7 +352,6 @@ if (dev != -1) chosen[i] = dev;
               int myTask;
 #pragma omp atomic capture 
                myTask = nextTask++;
-
               if(myTask < numTasks) chosen[myTask] = d;
 #endif
 	    } // end task                                                                                                               
