@@ -1,4 +1,4 @@
-# bio-stochastic-load-imbalance
+# Benchmark for Bio-stochastic Load-imbalance for Multi-GPU Platforms
 Benchmarking script for multiple GPU task-to-gpu(task2gpu) scheduling strategies applicable for stochastic applications with load imbalance. It includes 3 different task2gpu scheduling approaches,
 * dynamic_rand - An asynchronous method, it choses GPU randomly.
 * dynamic_occ - A synchronous method works based on the occupancy of the GPU. 
