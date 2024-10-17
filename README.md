@@ -1,8 +1,11 @@
-# Benchmark for Bio-stochastic Load-imbalance for Multi-GPU Platforms
-Benchmarking script for multiple GPU task-to-gpu(task2gpu) scheduling strategies applicable for stochastic applications with load imbalance. It includes 3 different task2gpu scheduling approaches,
-* dynamic_rand - An asynchronous method, it choses GPU randomly.
-* dynamic_occ - A synchronous method works based on the occupancy of the GPU. 
-* dynamic_ad - An asynchronous method works based on the load of the GPU. 
+# Benchmark: Bio-stochastic Load-imbalance for Multi-GPUs
+This repository contains a benchmark and benchmarking script for multiple GPU task-to-gpu (task2gpu) scheduling strategies applicable for stochastic applications with load imbalance in computational biology. 
+
+It includes 3 different task2gpu scheduling approaches: 
+
+1. dynamic_rand - An asynchronous method, it choses GPU randomly.
+2. dynamic_occ - A synchronous method works based on the occupancy of the GPU. 
+3. dynamic_ad - An asynchronous method works based on the load of the GPU. 
 
 ## Build
 Can use the sample script compile_summit.sh if you are using OLCF Summit, using llvm clang or IBM xl compiler. 
